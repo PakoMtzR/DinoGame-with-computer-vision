@@ -55,9 +55,10 @@ pygame.display.set_icon(dino_img)                   # Cargamos el icono de la ap
 BLACK = (25,25,25)
 WHITE = (220,220,220)
 GRAY = (100,100,100)
+GRAY_DARKED = (80,80,80)
 
 # Fuente
-font = pygame.font.Font(None, 28)
+font = pygame.font.Font(None, 24)
 
 # Clase dinosaurio (jugador)
 class Dino:
@@ -74,7 +75,7 @@ class Dino:
             pygame.image.load(os.path.join("my-assets\dino", "dino_1.png")),
             pygame.image.load(os.path.join("my-assets\dino", "dino_2.png"))
         ]
-        self.collision_image = pygame.image.load(os.path.join("my-assets\dino", "dino_3.png"))
+        self.collision_image = pygame.image.load(os.path.join("my-assets\dino", "dino_7.png"))
 
         # Cargar sonido de salto del dinosaurio
         self.jump_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "jump-sound.mp3"))
@@ -82,7 +83,13 @@ class Dino:
         self.current_frame = 0
         self.animation_time = 0
 
+        # Cargamos la imagen actual del
         self.image = self.jump_image
+
+        # Crear mascara de colisiones
+        self.mask = pygame.mask.from_surface(self.image)
+
+        # Dato para limitar la caida del dinosaurio
         self.ground_level = GROUND_LEVEL - self.image.get_height() + 10
         
     def jump(self):
@@ -104,6 +111,9 @@ class Dino:
             if self.animation_time % 10 == 0:
                 self.current_frame = (self.current_frame + 1) % len(self.running_images)
 
+    def update_mask(self):
+        self.mask = pygame.mask.from_surface(self.image)
+
     def draw(self, collision):
         # Cambiamos imagen dependiendo el estado del jugador
         if collision:
@@ -112,6 +122,9 @@ class Dino:
             self.image = self.running_images[self.current_frame]
         else:
             self.image = self.jump_image
+
+        # Actualizar la mascara del dinosaurio
+        self.update_mask()
 
         # Dibujamos el dinosaurio en la panatalla
         screen.blit(self.image, (self.x, self.y))
@@ -143,6 +156,12 @@ class Cactus(Object):
             pygame.image.load(os.path.join("my-assets\cactus", "cactus.png"))
         )
 
+        # Crear mascara de colisiones
+        self.mask = pygame.mask.from_surface(self.image)
+
+    def update_mask(self):
+        self.mask = pygame.mask.from_surface(self.image)
+
 class Cloud(Object):
     def __init__(self):
         super().__init__(
@@ -161,14 +180,16 @@ class Game:
         self.velocity = 4
         self.cactus = Cactus()
         self.score = 0
+        self.high_score = self.load_high_score()
+        self.new_record_flag = False
         self.count = 1
 
         # Creamos las nubes del escenario
-        self.clouds = [Cloud() for i in range(6)]
+        self.clouds = [Cloud() for _ in range(5)]
 
         # Sonidos del juego
         self.new_level_sound = self.die_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "point-sound.mp3"))
-        self.collision_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "pacman-dies.mp3"))
+        self.collision_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "lose_funny_retro_video-game.mp3"))
 
     # Funcion para manejar los eventos dentro del juego
     # cierre del juego, teclado, parpadeo, etc.
@@ -205,17 +226,19 @@ class Game:
         # Actualizar cactus
         self.cactus.move(self.velocity)
         
-        # Detectar colisiones
-        if (self.player.x < self.cactus.x + self.cactus.image.get_width()) and (self.player.x + self.player.image.get_width() > self.cactus.x) and (self.player.y < self.cactus.y + self.cactus.image.get_height()) and (self.player.y + self.player.image.get_height() > self.cactus.y):
-            self.collision = True
-            self.collision_sound.play()
-
         # Incrementar puntuacion
         self.score += 1
         if self.score == self.count*4*FPS:
             self.new_level_sound.play()
             self.count += 1
             self.velocity += 1
+
+        # Detectar colisiones con máscara
+        offset = (self.cactus.x - self.player.x, self.cactus.y - self.player.y)
+        if self.player.mask.overlap(self.cactus.mask, offset):
+            self.collision = True
+            self.collision_sound.play()
+            self.save_high_score()
 
     # Dibuja todos los elementos visibles del juego
     def draw(self):
@@ -231,26 +254,50 @@ class Game:
         # Dibujar cactus
         self.cactus.draw()
 
-        # Escribir el "score"
+        # Escribir el "score" y el "high_score"
+        high_score_text = font.render(f"Best: {self.high_score}", True, GRAY_DARKED)
+        screen.blit(high_score_text, (10,10))
         score_text = font.render(f"Score: {self.score}", True, BLACK)
-        screen.blit(score_text, (10,10))
+        screen.blit(score_text, (10,high_score_text.get_height() + 10))
 
         # Mostrar mensaje de reinicio
         if self.collision:
             message = font.render("Press SPACE to restart", True, BLACK)
             screen.blit(message, (WIDTH // 2 - message.get_width() // 2, HEIGTH // 2))
+            if self.new_record_flag:
+                new_record_text = font.render(f"New record: {self.high_score}!", True, GRAY_DARKED)
+                screen.blit(new_record_text, (WIDTH // 2 - new_record_text.get_width() // 2, HEIGTH // 2 - new_record_text.get_height() - 5))
 
         # Actualiza la pantalla
         pygame.display.update()
     
+    # Funcion para reiniciar el juego
     def restart(self):
         self.player = Dino()
         self.cactus = Cactus()
         self.velocity = 4
         self.score = 0
+        self.new_record_flag = False
         self.collision = False
         self.count = 1
     
+    # Carga el record mas alto almacenado en "high_score.txt"
+    def load_high_score(self):
+        try:
+            with open("high_score.txt", "r") as file:
+                return int(file.read())
+        except FileNotFoundError:
+            return 0
+
+    # Guarda el record mas alto
+    def save_high_score(self):
+        if self.score > self.high_score:
+            self.high_score = self.score
+            self.new_record_flag = True
+
+            with open("high_score.txt", "w") as file:
+                file.write(str(self.high_score))
+
     def run(self): 
         while self.running_game:
             self.handle_events()
