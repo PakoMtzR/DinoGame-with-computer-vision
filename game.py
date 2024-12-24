@@ -48,7 +48,7 @@ dino_img = pygame.image.load(os.path.join("my-assets\dino", "dino_0.png"))
 WIDTH, HEIGTH = 750, 400
 GROUND_LEVEL = HEIGTH*3//4
 screen = pygame.display.set_mode((WIDTH, HEIGTH))   # Definimos ancho y alto de la pantalla
-pygame.display.set_caption("Dino Game")             # Configuramos titulo de la barra
+pygame.display.set_caption("Dino-Game")             # Configuramos titulo de la barra
 pygame.display.set_icon(dino_img)                   # Cargamos el icono de la app
 
 # Colores
@@ -57,8 +57,9 @@ WHITE = (220,220,220)
 GRAY = (100,100,100)
 GRAY_DARKED = (80,80,80)
 
-# Fuente
-font = pygame.font.Font(None, 24)
+# Fuentes
+font_24 = pygame.font.Font(None, 24)
+font_20 = pygame.font.Font(None, 20)
 
 # Clase dinosaurio (jugador)
 class Dino:
@@ -136,14 +137,17 @@ class Object:
         self.y = y
         self.image = image
     
+    # Verifica si el objeto se sigue mostando en pantalla
     def on_screen(self):
         return self.x + self.image.get_width() >= 0
     
+    # Mueve el objeto en el eje x a una cierta velocidad
     def move(self, velocity):
         self.x -= velocity
         if not self.on_screen():
             self.x = WIDTH
     
+    # Dibuja el objeto
     def draw(self):
         screen.blit(self.image, (self.x, self.y))
     
@@ -188,8 +192,17 @@ class Game:
         self.clouds = [Cloud() for _ in range(5)]
 
         # Sonidos del juego
-        self.new_level_sound = self.die_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "point-sound.mp3"))
+        self.new_level_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "point-sound.mp3"))
         self.collision_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "lose_funny_retro_video-game.mp3"))
+
+        # Creamos los textos que no requieren ser animados(actualizados) durante el juego para mejorar el rendimiento
+        self.restart_message = font_24.render("Press SPACE to restart", True, BLACK)
+        self.jump_control_text = font_20.render("[SPACE] - Jump", True, GRAY_DARKED)
+        self.close_game_control_text = font_20.render("[ESC] - Close the game", True, GRAY_DARKED)
+        font_20.set_strikethrough(True)
+        self.blink_disable_text = font_20.render("[Q] - Blink control", True, GRAY_DARKED)
+        font_20.set_strikethrough(False)
+        self.blink_enable_text = font_20.render("[Q] - Blink control", True, GRAY_DARKED)
 
     # Funcion para manejar los eventos dentro del juego
     # cierre del juego, teclado, parpadeo, etc.
@@ -203,6 +216,14 @@ class Game:
                         self.restart()
                     else:
                         self.player.jump()
+                
+                # Tecla para des/habilitar el control por parpadeo
+                if event.key == pygame.K_q:
+                    self.blink_control_enable = not self.blink_control_enable
+                
+                # Tecla para salir del juego
+                if event.key == pygame.K_ESCAPE:
+                    self.running_game = False
         
         # Control de saltos detectando el parpadeo usando mediapipe
         if self.blink_control_enable and detect_blink():
@@ -213,9 +234,11 @@ class Game:
 
     # Actualiza el estado de los elementos del juego
     def update(self):
+        # Si existe una colision no debe actualizarse nada porque el juego ha acabado
         if self.collision:
             return
 
+        # Movemos todas las nubes
         for cloud in self.clouds:
             cloud.move(self.velocity)
 
@@ -238,7 +261,12 @@ class Game:
         if self.player.mask.overlap(self.cactus.mask, offset):
             self.collision = True
             self.collision_sound.play()
-            self.save_high_score()
+
+            # Verificamos si el jugador alcanzo un nuevo record
+            if self.score > self.high_score:
+                self.high_score = self.score
+                self.new_record_flag = True
+                self.save_high_score()          
 
     # Dibuja todos los elementos visibles del juego
     def draw(self):
@@ -254,19 +282,30 @@ class Game:
         # Dibujar cactus
         self.cactus.draw()
 
-        # Escribir el "score" y el "high_score"
-        high_score_text = font.render(f"Best: {self.high_score}", True, GRAY_DARKED)
+        # Escribir indicadores ("score" y "high_score")
+        high_score_text = font_24.render(f"Best: {self.high_score}", True, GRAY_DARKED)
         screen.blit(high_score_text, (10,10))
-        score_text = font.render(f"Score: {self.score}", True, BLACK)
-        screen.blit(score_text, (10,high_score_text.get_height() + 10))
+        
+        score_text = font_24.render(f"Score: {self.score}", True, BLACK)
+        screen.blit(score_text, (10, high_score_text.get_height() + 10))
 
-        # Mostrar mensaje de reinicio
+        # Escribimos mensaje de reinicio si existe una colision
         if self.collision:
-            message = font.render("Press SPACE to restart", True, BLACK)
-            screen.blit(message, (WIDTH // 2 - message.get_width() // 2, HEIGTH // 2))
+            screen.blit(self.restart_message, (WIDTH // 2 - self.restart_message.get_width() // 2, HEIGTH // 2))
+
+            # Escribimos un mensaje si rompio el record
             if self.new_record_flag:
-                new_record_text = font.render(f"New record: {self.high_score}!", True, GRAY_DARKED)
+                new_record_text = font_24.render(f"New record: {self.high_score}!", True, GRAY_DARKED)
                 screen.blit(new_record_text, (WIDTH // 2 - new_record_text.get_width() // 2, HEIGTH // 2 - new_record_text.get_height() - 5))
+
+        # Escribimos guia de controles
+        screen.blit(self.close_game_control_text, (10, HEIGTH - self.close_game_control_text.get_height() - 5))
+        screen.blit(self.jump_control_text, (10, HEIGTH - self.close_game_control_text.get_height() - self.jump_control_text.get_height() - 5))
+        
+        if not self.blink_control_enable:
+            screen.blit(self.blink_disable_text, (10, HEIGTH - self.close_game_control_text.get_height() - self.jump_control_text.get_height() - self.blink_disable_text.get_height() - 5))
+        else:
+            screen.blit(self.blink_enable_text, (10, HEIGTH - self.close_game_control_text.get_height() - self.jump_control_text.get_height() - self.blink_enable_text.get_height() - 5))
 
         # Actualiza la pantalla
         pygame.display.update()
@@ -289,15 +328,12 @@ class Game:
         except FileNotFoundError:
             return 0
 
-    # Guarda el record mas alto
+    # Guarda el "high score"
     def save_high_score(self):
-        if self.score > self.high_score:
-            self.high_score = self.score
-            self.new_record_flag = True
+        with open("high_score.txt", "w") as file:
+            file.write(str(self.high_score))
 
-            with open("high_score.txt", "w") as file:
-                file.write(str(self.high_score))
-
+    # Ejecuta el juego
     def run(self): 
         while self.running_game:
             self.handle_events()
