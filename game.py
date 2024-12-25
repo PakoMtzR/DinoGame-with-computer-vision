@@ -163,6 +163,11 @@ class Cactus(Object):
         # Crear mascara de colisiones
         self.mask = pygame.mask.from_surface(self.image)
 
+    def move(self, velocity):
+        self.x -= velocity
+        if not self.on_screen():
+            del self
+
     def update_mask(self):
         self.mask = pygame.mask.from_surface(self.image)
 
@@ -176,16 +181,22 @@ class Cloud(Object):
     
 class Game:
     def __init__(self):
-        self.running_game = True
-        self.blink_control_enable = False
+        # Banderas de control de juego
+        self.running_game = True            # Para saber si el juego debe seguir ejecutandore
+        self.blink_control_enable = False   # Para (des/ha)bilitar el control por parpadeo
+        self.collision = False              # Para saber si el jugador ha perdido la partida
+        self.new_record_flag = False        # Para conocer si el jugador a obtenido un nuevo record
         
-        self.player = Dino()
-        self.collision = False
-        self.velocity = 4
-        self.cactus = Cactus()
+        # Elementos del juego
+        self.player = Dino()    # Creamos el dinosaurio wooasss
+        self.cactuses = []      # Lista para guardar los cactus
+        self.velocity = 4       # Variable que modifica la dificultad del juego
+
+        # Variables para las metricas del jugador
         self.score = 0
         self.high_score = self.load_high_score()
-        self.new_record_flag = False
+        
+        # Variable relacionada con el tiempo del juego
         self.count = 1
 
         # Creamos las nubes del escenario
@@ -247,26 +258,35 @@ class Game:
         self.player.animate()
 
         # Actualizar cactus
-        self.cactus.move(self.velocity)
+        if random.randrange(0, 2*FPS) == 1:
+            self.cactuses.append(Cactus())
+        
+        for cactus in self.cactuses:
+            cactus.move(self.velocity)
         
         # Incrementar puntuacion
         self.score += 1
-        if self.score == self.count*4*FPS:
+        self.count += 1
+
+        # Cada n segundos aumenta la dificultad del juego
+        if self.count == 4*FPS:
             self.new_level_sound.play()
-            self.count += 1
             self.velocity += 1
+            self.count = 0
 
-        # Detectar colisiones con máscara
-        offset = (self.cactus.x - self.player.x, self.cactus.y - self.player.y)
-        if self.player.mask.overlap(self.cactus.mask, offset):
-            self.collision = True
-            self.collision_sound.play()
+        # Condicion para terminar la partida
+        # Detectar si existen colisiones entre el dinosaurio y los cactus
+        for cactus in self.cactuses:
+            offset = (cactus.x - self.player.x, cactus.y - self.player.y)
+            if self.player.mask.overlap(cactus.mask, offset):
+                self.collision = True
+                self.collision_sound.play()
 
-            # Verificamos si el jugador alcanzo un nuevo record
-            if self.score > self.high_score:
-                self.high_score = self.score
-                self.new_record_flag = True
-                self.save_high_score()          
+                # Verificamos si el jugador alcanzo un nuevo record
+                if self.score > self.high_score:
+                    self.high_score = self.score
+                    self.new_record_flag = True
+                    self.save_high_score()          
 
     # Dibuja todos los elementos visibles del juego
     def draw(self):
@@ -279,8 +299,9 @@ class Game:
         # Dibujar dinosaurio
         self.player.draw(self.collision)
 
-        # Dibujar cactus
-        self.cactus.draw()
+        # Dibujar los cactus
+        for cactus in self.cactuses:
+            cactus.draw()
 
         # Escribir indicadores ("score" y "high_score")
         high_score_text = font_24.render(f"Best: {self.high_score}", True, GRAY_DARKED)
@@ -312,13 +333,15 @@ class Game:
     
     # Funcion para reiniciar el juego
     def restart(self):
-        self.player = Dino()
-        self.cactus = Cactus()
-        self.velocity = 4
-        self.score = 0
-        self.new_record_flag = False
+        # Limpiamos las banderas de control del juego
+        self.new_record_flag = False   
         self.collision = False
-        self.count = 1
+        
+        self.player = Dino()    # Recreamos el dinosauuurio
+        self.cactuses = []      # Eliminamos todos los cactus
+        self.velocity = 4       
+        self.score = 0          # Resetamos el score
+        self.count = 0
     
     # Carga el record mas alto almacenado en "high_score.txt"
     def load_high_score(self):
