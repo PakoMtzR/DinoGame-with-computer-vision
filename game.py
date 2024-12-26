@@ -2,39 +2,8 @@ import pygame   # Libreria para el desarrollo de videojuegos
 import os       # Libreria para manejo de archivos
 import random   # Libreria para el manejo de numeros aleatorios
 
-import cv2              # Libreria para el manejo de imagenes
-import mediapipe as mp  # Libreria para la deteccion del parpadeo
-
-# Configuracion de mediapipe
-mp_face_mesh = mp.solutions.face_mesh
-face_mesh = mp_face_mesh.FaceMesh(refine_landmarks=True)
-
-# Inicializamos la camara
-cap = cv2.VideoCapture(0)  
-
-# Función para detectar el parpadeo
-def detect_blink():
-    ret, frame = cap.read()
-    if not ret:
-        return False
-    
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = face_mesh.process(frame)
-
-    if results.multi_face_landmarks:
-        for face_landmarks in results.multi_face_landmarks:
-            # Puntos de referencia para los ojos
-            left_eye = [face_landmarks.landmark[i] for i in [145, 159]]
-            right_eye = [face_landmarks.landmark[i] for i in [374, 386]]
-
-            # Calcular distancias
-            left_eye_dist = abs(left_eye[0].y - left_eye[1].y)
-            right_eye_dist = abs(right_eye[0].y - right_eye[1].y)
-
-            # Detectar parpadeo si las distancias son pequeñas
-            if left_eye_dist < 0.02 and right_eye_dist < 0.02:
-                return True
-    return False
+# Importamos clase para la deteccion de parpadeos
+from blink_detection import Blink_Detector 
 
 # Inicializamos pygame
 pygame.init()
@@ -215,6 +184,9 @@ class Game:
         font_20.set_strikethrough(False)
         self.blink_enable_text = font_20.render("[Q] - Blink control", True, GRAY_DARKED)
 
+        # Instanciar el detector de parpadeos
+        self.blink_detector = Blink_Detector()
+
     # Funcion para manejar los eventos dentro del juego
     # cierre del juego, teclado, parpadeo, etc.
     def handle_events(self):
@@ -237,7 +209,7 @@ class Game:
                     self.running_game = False
         
         # Control de saltos detectando el parpadeo usando mediapipe
-        if self.blink_control_enable and detect_blink():
+        if self.blink_control_enable and self.blink_detector.detect_blink():
             if self.collision:
                 self.restart()
             else:
@@ -363,12 +335,11 @@ class Game:
             self.update()
             self.draw()
             clock.tick(FPS)
+        
+        # Libera los recursos cuando se cierre el juego (camara)
+        self.blink_detector.release()
 
 # Ejecutar el juego
 game = Game()
 game.run()
-
-# Libera los recursos cuando se cierre el juego
-cap.release()
-cv2.destroyAllWindows()
 pygame.quit()
