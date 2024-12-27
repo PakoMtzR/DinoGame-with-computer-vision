@@ -34,18 +34,24 @@ class Blink_Detector:
 
         blink_detected = False
         if results.multi_face_landmarks:
-            for face_landmarks in results.multi_face_landmarks:
-                # Puntos de referencia para los ojos
-                left_eye = [face_landmarks.landmark[i] for i in [145, 159]]
-                right_eye = [face_landmarks.landmark[i] for i in [374, 386]]
+            # Este ciclo for puede iterar entre las diferentes caras que detecto
+            # pero yo solo necesito detectar una
+            # "for face_landmarks in results.multi_face_landmarks:"
 
-                # Calcular distancias
-                left_eye_dist = abs(left_eye[0].y - left_eye[1].y)
-                right_eye_dist = abs(right_eye[0].y - right_eye[1].y)
+            # Obtenemos los puntos de la primera cara que detecto
+            face_landmarks = results.multi_face_landmarks[0]
 
-                # Detectar parpadeo si las distancias son pequeñas
-                if left_eye_dist < 0.02 and right_eye_dist < 0.02:
-                    blink_detected = True
+            # Puntos de referencia para los ojos
+            left_eye = [face_landmarks.landmark[i] for i in [145, 159]]
+            right_eye = [face_landmarks.landmark[i] for i in [374, 386]]
+
+            # Calcular distancias
+            left_eye_dist = abs(left_eye[0].y - left_eye[1].y)
+            right_eye_dist = abs(right_eye[0].y - right_eye[1].y)
+
+            # Detectar parpadeo si las distancias son pequeñas
+            if left_eye_dist < 0.02 and right_eye_dist < 0.02:
+                blink_detected = True
         
         # Actualizamos el tiempo del procesamiento
         self.last_processed_time = current_time

@@ -5,6 +5,11 @@ import random   # Libreria para el manejo de numeros aleatorios
 # Importamos clase para la deteccion de parpadeos
 from blink_detection import Blink_Detector 
 
+# Importamos nuestras clases del juego
+from cloud import Cloud
+from cactus import Cactus
+from player import Dino
+
 # Inicializamos pygame
 pygame.init()
 FPS = 60
@@ -29,124 +34,6 @@ GRAY_DARKED = (80,80,80)
 # Fuentes
 font_24 = pygame.font.Font(None, 24)
 font_20 = pygame.font.Font(None, 20)
-
-# Clase dinosaurio (jugador)
-class Dino:
-    def __init__(self):
-        self.x = 70
-        self.y = 50
-        self.velocity = 0
-        self.gravity = 0.5
-        self.jumping = True
-
-        # Cargar imagenes
-        self.jump_image = pygame.image.load(os.path.join("my-assets\dino", "dino_0.png"))
-        self.running_images = [
-            pygame.image.load(os.path.join("my-assets\dino", "dino_1.png")),
-            pygame.image.load(os.path.join("my-assets\dino", "dino_2.png"))
-        ]
-        self.collision_image = pygame.image.load(os.path.join("my-assets\dino", "dino_7.png"))
-
-        # Cargar sonido de salto del dinosaurio
-        self.jump_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "jump-sound.mp3"))
-
-        self.current_frame = 0
-        self.animation_time = 0
-
-        # Cargamos la imagen actual del
-        self.image = self.jump_image
-
-        # Crear mascara de colisiones
-        self.mask = pygame.mask.from_surface(self.image)
-
-        # Dato para limitar la caida del dinosaurio
-        self.ground_level = GROUND_LEVEL - self.image.get_height() + 10
-        
-    def jump(self):
-        if not self.jumping:
-            self.jumping = True
-            self.velocity = -10
-            self.jump_sound.play()
-    
-    def move(self):
-        self.velocity += self.gravity
-        self.y += self.velocity
-        if self.y >= self.ground_level:
-            self.y = self.ground_level
-            self.jumping = False
-    
-    def animate(self):
-        if not self.jumping:
-            self.animation_time += 1
-            if self.animation_time % 10 == 0:
-                self.current_frame = (self.current_frame + 1) % len(self.running_images)
-
-    def update_mask(self):
-        self.mask = pygame.mask.from_surface(self.image)
-
-    def draw(self, collision):
-        # Cambiamos imagen dependiendo el estado del jugador
-        if collision:
-            self.image = self.collision_image
-        elif not self.jumping:
-            self.image = self.running_images[self.current_frame]
-        else:
-            self.image = self.jump_image
-
-        # Actualizar la mascara del dinosaurio
-        self.update_mask()
-
-        # Dibujamos el dinosaurio en la panatalla
-        screen.blit(self.image, (self.x, self.y))
-
-# Clase para los objetos dentro del juego
-class Object:
-    def __init__(self, x, y, image):
-        self.x = x
-        self.y = y
-        self.image = image
-    
-    # Verifica si el objeto se sigue mostando en pantalla
-    def on_screen(self):
-        return self.x + self.image.get_width() >= 0
-    
-    # Mueve el objeto en el eje x a una cierta velocidad
-    def move(self, velocity):
-        self.x -= velocity
-        if not self.on_screen():
-            self.x = WIDTH
-    
-    # Dibuja el objeto
-    def draw(self):
-        screen.blit(self.image, (self.x, self.y))
-    
-class Cactus(Object):
-    # GROUND_LEVEL - self.image.get_height() + 10,
-    def __init__(self):
-        super().__init__(
-            WIDTH,
-            GROUND_LEVEL - 46 + 10,
-            pygame.image.load(os.path.join("my-assets\cactus", "cactus.png"))
-        )
-
-        # Crear mascara de colisiones
-        self.mask = pygame.mask.from_surface(self.image)
-
-    def move(self, velocity):
-        self.x -= velocity
-        if not self.on_screen():
-            del self
-
-    def update_mask(self):
-        self.mask = pygame.mask.from_surface(self.image)
-
-class Cloud(Object):
-    def __init__(self):
-        super().__init__(
-            random.randint(0, WIDTH), 
-            random.randint(0, int(HEIGTH*0.4)),
-            pygame.image.load(os.path.join("my-assets\clouds", "cloud.png"))
-        )
     
 class Game:
     def __init__(self):
@@ -157,9 +44,9 @@ class Game:
         self.new_record_flag = False        # Para conocer si el jugador a obtenido un nuevo record
         
         # Elementos del juego
-        self.player = Dino()    # Creamos el dinosaurio wooasss
-        self.cactuses = []      # Lista para guardar los cactus
-        self.velocity = 4       # Variable que modifica la dificultad del juego
+        self.player = Dino(screen)      # Creamos el dinosaurio wooasss
+        self.cactuses = []              # Lista para guardar los cactus
+        self.velocity = 4               # Variable que modifica la dificultad del juego
 
         # Variables para las metricas del jugador
         self.score = 0
@@ -169,7 +56,7 @@ class Game:
         self.count = 1
 
         # Creamos las nubes del escenario
-        self.clouds = [Cloud() for _ in range(5)]
+        self.clouds = [Cloud(screen) for _ in range(5)]
 
         # Sonidos del juego
         self.new_level_sound = pygame.mixer.Sound(os.path.join("my-assets\sounds", "point-sound.mp3"))
@@ -223,7 +110,7 @@ class Game:
 
         # Movemos todas las nubes
         for cloud in self.clouds:
-            cloud.move(self.velocity)
+            cloud.move(screen, self.velocity)
 
         # Actualizazr dinosaurio
         self.player.move()
@@ -231,7 +118,7 @@ class Game:
 
         # Actualizar cactus
         if random.randrange(0, 2*FPS) == 1:
-            self.cactuses.append(Cactus())
+            self.cactuses.append(Cactus(screen))
         
         for cactus in self.cactuses:
             cactus.move(self.velocity)
@@ -266,14 +153,14 @@ class Game:
         screen.fill(WHITE)
         pygame.draw.line(screen, GRAY, (0,300), (WIDTH, 300), width=1)
         for cloud in self.clouds:
-            cloud.draw()
+            cloud.draw(screen)
 
         # Dibujar dinosaurio
-        self.player.draw(self.collision)
+        self.player.draw(screen, self.collision)
 
         # Dibujar los cactus
         for cactus in self.cactuses:
-            cactus.draw()
+            cactus.draw(screen)
 
         # Escribir indicadores ("score" y "high_score")
         high_score_text = font_24.render(f"Best: {self.high_score}", True, GRAY_DARKED)
@@ -309,10 +196,10 @@ class Game:
         self.new_record_flag = False   
         self.collision = False
         
-        self.player = Dino()    # Recreamos el dinosauuurio
-        self.cactuses = []      # Eliminamos todos los cactus
+        self.player = Dino(screen)  # Recreamos el dinosauuurio
+        self.cactuses = []          # Eliminamos todos los cactus
         self.velocity = 4       
-        self.score = 0          # Resetamos el score
+        self.score = 0              # Resetamos el score
         self.count = 0
     
     # Carga el record mas alto almacenado en "high_score.txt"
